@@ -11,7 +11,8 @@ test('new users have no preset banks and migration preserves used and explicitly
  assert.deepEqual(migrated.accounts.map(a=>a.id),[t.accountId,'mine']);assert.deepEqual(updateAccounts(migrated),migrated);
 });
 test('periods handle year boundaries, leap days and quarter shifts',()=>{
- assert.deepEqual(periodRange('2025-01-01','Week'),{from:'2024-12-30',to:'2025-01-05'});
+ assert.deepEqual(periodRange('2025-01-01','Week'),{from:'2024-12-29',to:'2025-01-04'});
+ assert.deepEqual(periodRange('2026-10-18','Week'),{from:'2026-10-18',to:'2026-10-24'});
  assert.equal(periodRange('2024-02-20','Month').to,'2024-02-29');
  assert.deepEqual(periodRange('2025-05-02','Quarter'),{from:'2025-04-01',to:'2025-06-30'});
  assert.equal(shiftPeriod('2025-12-31','Month',1),'2026-01-01');assert.equal(shiftPeriod('2025-01-02','Quarter',-1),'2024-10-01');
@@ -26,4 +27,3 @@ test('AI retries transient errors once and never loops on quota or bad credentia
  for(const status of [401,429]){let calls=0;await assert.rejects(categorize(input,'test',async()=>{calls++;return new Response('',{status});}));assert.equal(calls,1);}
  let calls=0;await assert.rejects(categorize(input,'test',async()=>{calls++;return new Response('',{status:503});}));assert.equal(calls,2);
 });
-
