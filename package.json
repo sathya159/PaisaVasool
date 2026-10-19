@@ -1,0 +1,39 @@
+{
+  "name": "paisavasool",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "export:ios": "expo export --platform ios",
+    "export:web": "node scripts/prepare-web.mjs && expo export --platform web",
+    "dev": "node scripts/dev.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.0",
+    "expo": "~57.0.24",
+    "expo-crypto": "~57.0.0",
+    "expo-dev-client": "~57.0.19",
+    "expo-document-picker": "~57.0.2",
+    "expo-file-system": "~57.0.7",
+    "expo-secure-store": "~57.0.4",
+    "expo-sqlite": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "pdfjs-dist": "^6.3.289",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-web": "^0.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "~19.2.0",
+    "playwright": "^1.63.0",
+    "typescript": "~6.0.3"
+  }
+}
+
