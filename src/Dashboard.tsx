@@ -10,11 +10,8 @@ import {periodRange,shiftPeriod} from './periods';
 import type {Period} from './periods';
 const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function weekLabel(from:string,to:string){
- const monthName=(date:string)=>months[Number(date.slice(5,7))-1].toUpperCase();
- const day=(date:string)=>Number(date.slice(8,10));
- if(from.slice(0,7)===to.slice(0,7))return `${monthName(from)} (${day(from)}–${day(to)})`;
- if(from.slice(0,4)===to.slice(0,4))return `${monthName(from)} ${day(from)} – ${monthName(to)} ${day(to)}`;
- return `${monthName(from)} ${day(from)}, ${from.slice(0,4)} – ${monthName(to)} ${day(to)}, ${to.slice(0,4)}`;
+ const format=(date:string)=>new Date(date+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:'UTC',...(from.slice(0,4)!==to.slice(0,4)?{year:'numeric' as const}:{})});
+ return `${format(from)} – ${format(to)}`;
 }
 const colors=['#8060ED','#FF865E','#55B7C2','#34465B','#E9B948'];
 const demoRequested=Platform.OS==='web'&&typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('demo')==='year';
