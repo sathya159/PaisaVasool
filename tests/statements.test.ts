@@ -1,11 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {extractStatement} from '../server/statements.ts';
-import {statementRows} from '../src/statement-import.ts';
+import {statementRows,statementIssues,statementPeriod} from '../src/statement-import.ts';
 import {accounts,emptyLedger,importRows} from './fixture.ts';
 const text='Bank of America Checking USD\n2025-01-02,Target,-24.50';
 const row={date:'2025-01-02',description:'Target',amount:'-24.50',accountId:'bofa',accountName:'Bank of America Checking',accountType:'bank',currency:'USD',evidence:'2025-01-02,Target,-24.50'};
 const mock=(rows:unknown[]):typeof fetch=>async()=>Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify({rows,warnings:[]})}}]});
+test('zero entries are skipped without changing source row IDs; blank amounts need correction',()=>{
+ const rows=[{...row,amount:'0.00',description:'Interest',date:''},row];
+ const result=statementRows(rows,accounts,'file');
+ assert.equal(result.length,1);assert.equal(result[0].sourceId,'file:1');
+ assert.deepEqual(statementPeriod(rows),{from:row.date,to:row.date});
+ assert.deepEqual(statementIssues(rows[0],accounts),{});
+ assert.ok(statementIssues({...row,amount:''},accounts).amount);
+ assert.throws(()=>statementRows([row,{...row,amount:'invalid'}],accounts,'file'),/Row 2/);
+});
+test('statement period uses extracted dates and reports each invalid field',()=>{
+ assert.deepEqual(statementPeriod([{...row,date:'2025-02-20'},row]),{from:'2025-01-02',to:'2025-02-20'});
+ const errors=statementIssues({...row,date:'2025-02-30',amount:'wrong',description:''},accounts);
+ assert.ok(errors.date);assert.ok(errors.amount);assert.ok(errors.description);
+});
 test('statement extraction evidence must be present and unknown accounts require confirmation',async()=>{
  const parsed=await extractStatement({text},'test',mock([row]));assert.equal(statementRows(parsed.rows,accounts,'hash')[0].amount,-2450);
  await assert.rejects(extractStatement({text},'test',mock([{...row,evidence:'Invented'}])),/verified/);
@@ -16,4 +30,3 @@ test('statement imports preserve identity, apply dates, and skip exact repeats',
  const rows=statementRows([row],accounts,'hash');const first=importRows(emptyLedger(),rows,'2025-01-01','2025-01-31');assert.equal(first.added,1);assert.equal(importRows(first.state,rows,'2025-01-01','2025-01-31').skipped,1);assert.equal(importRows(emptyLedger(),rows,'2025-02-01','2025-02-28').outside,1);
  assert.throws(()=>statementRows([{...row,date:'2025-02-30'}],accounts,'hash'),/date/);
 });
-
