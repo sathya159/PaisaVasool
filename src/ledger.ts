@@ -1,12 +1,13 @@
 export type Currency = 'USD' | 'INR';
 export type Kind = 'unreviewed' | 'expense' | 'income' | 'investment' | 'transfer' | 'refund' | 'familyfund' | 'loan' | 'loanRepayment';
-export type Account = { id: string; name: string; currency: Currency; type: 'bank' | 'card' | 'fund'; addedByUser?: boolean };
+export type CardStatement = {closingDate:string;dueDate?:string;balance:number;minimum?:number;opening?:number;sourceHash:string};
+export type Account = { id: string; name: string; currency: Currency; type: 'bank' | 'card' | 'fund'; addedByUser?: boolean; cardStatements?:CardStatement[] };
 export type Transaction = {
   id: string; accountId: string; date: string; description: string; amount: number;
   currency: Currency; kind: Kind; person: string; category: string; reason: string;
   merchant?: string; sourceId?: string; source?: string; duplicateOf?: string; ignored?: boolean;
   loanOf?: string; repaymentType?: 'split'; splitOwed?: number; splitFrom?: string;
-  transferId?: string; refundOf?: string; evidence?: string; classifiedFromHistory?: boolean;
+  transferId?: string; refundOf?: string; evidence?: string; classifiedFromHistory?: boolean; cardPayment?:boolean;
 };
 export type Rule = { reason: string; person: string; category: string };
 export type Ledger = { version: 1; accountSetupVersion?: number; demo?: boolean; autoClassifyKnown?: boolean; accounts: Account[]; transactions: Transaction[]; rules: Rule[] };
@@ -50,9 +51,13 @@ export function importRows(state: Ledger, rows: Transaction[], from: string, to:
   for (const row of rows) {
     validate(row,state);
     if (row.date<from || row.date>to) {outside++;continue;}
+    const previous=transactions.find(t=>t.accountId===row.accountId&&((row.sourceId&&t.source===row.source&&t.sourceId===row.sourceId)||(t.date===row.date&&t.amount===row.amount&&normalize(t.description)===normalize(row.description))));
+    if(row.cardPayment&&previous&&active(previous)&&!previous.transferId&&!previous.refundOf&&!previous.loanOf&&!transactions.some(t=>t.refundOf===previous.id||t.loanOf===previous.id)){
+      const index=transactions.indexOf(previous);transactions[index]={...previous,kind:'transfer',cardPayment:true,category:'Credit card payment',person:'',reason:'Credit card bill payment; confirmed by statement reimport.'};
+    }
     if (row.sourceId && transactions.some(t=>t.accountId===row.accountId && t.source===row.source && t.sourceId===row.sourceId)) {skipped++;continue;}
     const match = transactions.find(t=>!t.ignored && t.accountId===row.accountId && t.date===row.date && t.amount===row.amount && normalize(t.description)===normalize(row.description));
-    transactions.push({...row, duplicateOf:match?.id, kind:'unreviewed'});
+    transactions.push({...row, duplicateOf:match?.id, kind:row.cardPayment?'transfer':'unreviewed'});
     added++; if(match) possible++;
   }
   return {state:{...state,transactions},added,skipped,possible,outside};
@@ -143,4 +148,3 @@ export function updateAccounts(state:Ledger):Ledger {
  const kept=state.accounts.filter(a=>state.accountSetupVersion===2||a.addedByUser||used.has(a.id)||!accounts.some(seed=>seed.id===a.id&&seed.name===a.name));
  return {...state,accountSetupVersion:2,autoClassifyKnown:true,accounts:kept.map(a=>a.id==='bcu'&&a.name==='BCU'?{...a,name:'BCU Checking'}:a)};
 }
-

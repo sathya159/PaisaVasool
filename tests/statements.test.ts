@@ -6,6 +6,14 @@ import {accounts,emptyLedger,importRows} from './fixture.ts';
 const text='Bank of America Checking USD\n2025-01-02,Target,-24.50';
 const row={date:'2025-01-02',description:'Target',amount:'-24.50',accountId:'bofa',accountName:'Bank of America Checking',accountType:'bank',currency:'USD',evidence:'2025-01-02,Target,-24.50'};
 const mock=(rows:unknown[]):typeof fetch=>async()=>Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify({rows,warnings:[]})}}]});
+test('statement summary uses source evidence and does not turn balances into transactions',async()=>{
+ const source='Closing date 2026-09-30 New balance 1000.00 Due date 2026-10-25 Minimum 25.00 USD';
+ const values={closingDate:'2026-09-30',balance:'1000.00',dueDate:'2026-10-25',minimum:'25.00',opening:'',currency:'USD'};
+ const cardSummary=Object.fromEntries(Object.entries(values).map(([k,v])=>[k,{value:v,evidence:v}]));
+ const request:typeof fetch=async()=>Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify({rows:[],warnings:[],cardSummary})}}]});
+ const parsed=await extractStatement({text:source},'test',request);assert.equal(parsed.cardSummary.balance.value,'1000.00');assert.equal(parsed.rows.length,0);
+ cardSummary.balance.evidence='invented source';const rejected=await extractStatement({text:source},'test',request);assert.equal(rejected.cardSummary,null);assert.ok(rejected.warnings.length);
+});
 test('preselected statement account resolves missing currency but flags conflicting currency without conversion',()=>{
  const account=accounts.find(a=>a.id==='bofa')!;
  const result=useImportAccount([{...row,accountId:'unknown',currency:'unknown',amount:'24.5'},{...row,currency:'INR'}],account);

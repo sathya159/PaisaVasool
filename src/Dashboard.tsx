@@ -1,3 +1,4 @@
+import {CardBalances} from './CardBalances';
 import React,{useMemo,useRef,useState,useEffect} from 'react';
 import {View,Text,Pressable,StyleSheet,ScrollView,Platform} from 'react-native';
 import type {Ledger,Currency,Transaction} from './ledger';
@@ -55,6 +56,7 @@ export function Dashboard({ledger,onOpen,onReview,onActivity}:{ledger:Ledger;onO
     <View style={s.pagination}><Pressable accessibilityRole="button" accessibilityLabel="Previous statistic" disabled={index===0} onPress={()=>move(index-1)}><Text style={[s.arrow,{opacity:index===0?.25:1}]}>‹</Text></Pressable><View style={{flexDirection:'row',gap:7}}>{slides.map((title,i)=><Pressable key={title} accessibilityRole="button" accessibilityLabel={`Show ${title} statistic`} accessibilityState={{selected:index===i}} onPress={()=>move(i)} style={[s.dot,{width:index===i?20:6,backgroundColor:index===i?'#8060ED':'#DAD5E9'}]}/>)}</View><Pressable accessibilityRole="button" accessibilityLabel="Next statistic" disabled={index===slides.length-1} onPress={()=>move(index+1)}><Text style={[s.arrow,{opacity:index===slides.length-1?.25:1}]}>›</Text></Pressable></View>
    </View>
   </View>
+  <CardBalances ledger={data} currency={currency} asOf={report.to}/>
   <View style={s.quickRow}>
    <Pressable accessibilityRole="button" accessibilityLabel="Open recurring payments" onPress={()=>{move(3);}} style={[s.quickCard,{backgroundColor:'#F0EBFC'}]}>
     <View style={s.quickTitle}><Text style={s.quickIcon}>↻</Text><Text style={s.quickLabel}>REGULAR PAYMENTS</Text></View>

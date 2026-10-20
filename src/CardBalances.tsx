@@ -1,0 +1,11 @@
+import React from 'react';
+import {View,Text,ScrollView} from 'react-native';
+import type {Ledger,Currency} from './ledger';
+import {cardBalance} from './card-statements';
+export function CardBalances({ledger,currency,asOf}:{ledger:Ledger;currency:Currency;asOf:string}){
+ asOf=[asOf,new Date().toLocaleDateString('en-CA')].sort()[0];
+ const accounts=ledger.accounts.filter(a=>a.type==='card'&&a.currency===currency);
+ if(!accounts.length)return null;
+ const money=(n:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency}).format(n/100);
+ return <View style={{marginVertical:16}}><Text style={{fontSize:18,fontWeight:'700',color:'#3E3D53'}}>Credit card bills</Text><Text style={{fontSize:12,color:'#64748B',marginVertical:6}}>Statements and recorded activity through {asOf}</Text><ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{gap:12,paddingBottom:8}}>{accounts.map(a=>{const b=cardBalance(ledger,a,asOf);return <View key={a.id} style={{width:285,padding:18,borderRadius:18,backgroundColor:'#F0EBFC'}}><Text style={{fontWeight:'700',fontSize:16}}>{a.name}</Text>{b?<><Text style={{marginTop:12,color:'#64748B'}}>Remaining statement bill · estimate</Text><Text style={{fontSize:28,fontWeight:'800',color:'#7054C7',marginVertical:5}}>{money(b.remaining)}</Text><Text>{b.statement.dueDate?'Due '+b.statement.dueDate:'Due date not provided'}</Text><Text style={{marginTop:12}}>Statement ({b.statement.closingDate}): {money(b.statement.balance)}</Text><Text>Later payments: {money(b.payments)}</Text><Text>Minimum printed on statement: {b.statement.minimum===undefined?'Not provided':money(b.statement.minimum)}</Text><Text style={{marginTop:12}}>New charges: {money(b.charges)}</Text><Text>Other credits / refunds: {money(b.credits)}</Text><Text style={{fontWeight:'700',marginTop:6}}>Estimated card balance: {money(b.estimated)}</Text><Text style={{fontSize:11,color:'#64748B',marginTop:10}}>Latest recorded activity: {b.lastActivity}. Not a live bank balance. Refunds, payment reversals and issuer adjustments may change the amount due; check your issuer. New charges are separate from this statement bill.</Text></>:<Text style={{marginTop:12,color:'#64748B'}}>Import this card’s PDF and confirm its closing balance to track the bill. Older imports do not contain a statement summary.</Text>}</View>;})}</ScrollView></View>;
+}

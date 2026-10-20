@@ -1,6 +1,7 @@
+import {looksLikeCardPayment} from './card-statements.ts';
 import {cents,validDate,uid} from './ledger.ts';
 import type {Account,Transaction} from './ledger.ts';
-export type StatementRow={date:string;description:string;amount:string;currency:string;accountId:string;accountName?:string;accountType?:string;evidence:string};
+export type StatementRow={date:string;description:string;amount:string;currency:string;accountId:string;accountName?:string;accountType?:string;evidence:string;paymentType?:'cardPayment'|'other'};
 export type RowIssues=Partial<Record<'date'|'description'|'amount'|'accountId'|'evidence',string>>;
 export function useImportAccount(rows:StatementRow[],account:Account):StatementRow[]{
  return rows.map(row=>['USD','INR'].includes(row.currency)&&row.currency!==account.currency
@@ -30,5 +31,5 @@ export function statementPeriod(rows:StatementRow[]){
 }
 export function statementRows(rows:StatementRow[],accounts:Account[],hash:string):Transaction[]{
  if(!rows.length||rows.length>120)throw Error('No transactions ready to import.');
- return rows.flatMap((r,i):Transaction[]=>{if(zeroStatementRow(r))return [];const issues=statementIssues(r,accounts);if(Object.keys(issues).length)throw Error('Row '+(i+1)+': '+Object.values(issues).join(' '));const a=accounts.find(a=>a.id===r.accountId)!;return [{id:uid(),accountId:a.id,currency:a.currency,date:r.date,description:r.description,amount:cents(r.amount),kind:'unreviewed',person:'',category:'',reason:'',source:'ai-statement',sourceId:hash+':'+i,evidence:r.evidence}];});
+ return rows.flatMap((r,i):Transaction[]=>{if(zeroStatementRow(r))return [];const issues=statementIssues(r,accounts);if(Object.keys(issues).length)throw Error('Row '+(i+1)+': '+Object.values(issues).join(' '));const a=accounts.find(a=>a.id===r.accountId)!;const cardPayment=(a.type==='card'&&cents(r.amount)>0&&(r.paymentType==='cardPayment'||looksLikeCardPayment(r.description)))||(a.type==='bank'&&cents(r.amount)<0&&r.paymentType==='cardPayment');return [{id:uid(),accountId:a.id,currency:a.currency,date:r.date,description:r.description,amount:cents(r.amount),kind:cardPayment?'transfer':'unreviewed',cardPayment,person:'',category:cardPayment?'Credit card payment':'',reason:cardPayment?'Credit card bill payment; excluded from spending and income.':'',source:'ai-statement',sourceId:hash+':'+i,evidence:r.evidence}];});
 }
