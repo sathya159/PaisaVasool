@@ -1,3 +1,4 @@
+import {rememberVendor} from './vendor-memory.ts';
 export type Currency = 'USD' | 'INR';
 export type Kind = 'unreviewed' | 'expense' | 'income' | 'investment' | 'transfer' | 'refund' | 'familyfund' | 'loan' | 'loanRepayment';
 export type CardStatement = {closingDate:string;dueDate?:string;balance:number;minimum?:number;opening?:number;sourceHash:string};
@@ -10,7 +11,8 @@ export type Transaction = {
   transferId?: string; refundOf?: string; evidence?: string; classifiedFromHistory?: boolean; cardPayment?:boolean;
 };
 export type Rule = { reason: string; person: string; category: string };
-export type Ledger = { version: 1; accountSetupVersion?: number; demo?: boolean; autoClassifyKnown?: boolean; accounts: Account[]; transactions: Transaction[]; rules: Rule[] };
+export type VendorRule={aliases:string[];direction:number;kind:'expense'|'income'|'investment';person:string;category:string;merchant:string;reason:string;amount?:number;currency?:Currency};
+export type Ledger = { version: 1; accountSetupVersion?: number; demo?: boolean; autoClassifyKnown?: boolean; accounts: Account[]; transactions: Transaction[]; rules: Rule[];vendorRules?:VendorRule[] };
 export const accounts: Account[] = [
   {id:'bofa',name:'Bank of America',currency:'USD',type:'bank'},
   {id:'bcu',name:'BCU Checking',currency:'USD',type:'bank'},
@@ -63,10 +65,24 @@ export function importRows(state: Ledger, rows: Transaction[], from: string, to:
   return {state:{...state,transactions},added,skipped,possible,outside};
 }
 export const active = (t: Transaction) => !t.ignored && !t.duplicateOf;
+// A bill repayment is a transfer even if an older classification called it spending/income.
+export function isCardBillPayment(state:Ledger,t:Transaction){
+ if(t.cardPayment)return true;
+ if(t.loanOf||t.kind==='loan'||t.kind==='loanRepayment')return false;
+ const account=state.accounts.find(a=>a.id===t.accountId),source=normalize(t.description),text=normalize(t.description+' '+t.reason+' '+t.category);
+ // Explicit card-side payment evidence wins over an old, incorrect refund label.
+ if(account?.type==='card'&&t.amount>0&&!/\b(refund|reversal|reversed|returned|rejected|failed|interest|fee|fees)\b/.test(source)&&/\b(payment received|payment thank|autopay|auto pay|automatic payment|online payment|mobile payment)\b|^(payment|pmt)$/.test(source))return true;
+ if(t.refundOf||t.kind==='refund')return false;
+ if(/\b(refund|reversal|reversed|returned|rejected|failed|interest|fee|fees|mortgage|loan)\b/.test(text))return false;
+ if(account?.type==='card'&&t.amount>0)return /\b(payment|pmt|autopay|auto pay)\b/.test(text);
+ if(account?.type!=='bank'||t.amount>=0)return false;
+ return /\b(credit card|credit crd|card bill|card repayment|cc)\b.*\b(payment|paid|pay|repayment|pmt|autopay)\b|\b(payment|paid|pay|repayment|pmt)\b.*\b(credit card|card bill|crd)\b|\b(crcardpmt|cardpmt)\b/.test(text)
+  || /\b(amex|american express|capital one|capitalone|citi card|citicard|chase credit|discover card)\b/.test(text)&&/\b(payment|pmt|epayment|autopay|autopayment|paid|pay)\b/.test(text);
+}
 export function totals(state: Ledger, currency: Currency, from='', to='9999-12-31', person?: string) {
   let expense=0,income=0,invested=0,withdrawn=0,lent=0,review=0;
   for(const t of state.transactions) {
-    if(!active(t)||t.currency!==currency||t.date<from||t.date>to) continue;
+    if(!active(t)||t.currency!==currency||t.date<from||t.date>to||isCardBillPayment(state,t)) continue;
     if(t.kind==='unreviewed') {review++;continue;}
     const original = t.refundOf ? state.transactions.find(o=>o.id===t.refundOf) : undefined;
     if(person && (original?.person||t.person)!==person) continue;
@@ -100,18 +116,19 @@ export function unlink(state: Ledger,id: string): Ledger {
     (t.id===id || (target?.transferId && t.transferId===target.transferId) || t.refundOf===id || t.loanOf===id)
       ? {...t,kind:'unreviewed',transferId:undefined,refundOf:undefined,loanOf:undefined,repaymentType:undefined} : t)};
 }
-export function review(state: Ledger, tx: Transaction): Ledger {
+export function review(state: Ledger, tx: Transaction,learn=true): Ledger {
   validate(tx,state);
   const old=state.transactions.find(t=>t.id===tx.id);
   if(old?.transferId||old?.refundOf||old?.loanOf||state.transactions.some(t=>t.refundOf===tx.id||t.loanOf===tx.id)) throw new Error('Unlink this transaction before changing its classification.');
   if(tx.kind==='refund'||tx.kind==='transfer'||tx.kind==='loanRepayment') throw new Error('Use the matching action to link both transactions.');
   if(tx.kind!=='unreviewed' && (!tx.category.trim()||!tx.reason.trim())) throw new Error('Add a category and a reason.');
   const category=state.transactions.find(t=>normalize(t.category)===normalize(tx.category))?.category || tx.category.trim();
-  const updated={...tx,category,person:tx.person.trim(),reason:tx.reason.trim()};
+  const updated={...tx,category,person:tx.person.trim(),reason:tx.reason.trim(),classifiedFromHistory:!learn};
   const rules=tx.reason.trim() && tx.kind==='expense'
     ? [...state.rules.filter(r=>normalize(r.reason)!==normalize(tx.reason)||normalize(r.person)!==normalize(tx.person)),{reason:tx.reason.trim(),person:tx.person.trim(),category}]
     : state.rules;
-  return {...state,rules,transactions:old?state.transactions.map(t=>t.id===tx.id?updated:t):[...state.transactions,updated]};
+  const vendorRules=learn&&!isCardBillPayment(state,updated)?rememberVendor(state.vendorRules||[],updated):state.vendorRules;
+  return {...state,rules,vendorRules,transactions:old?state.transactions.map(t=>t.id===tx.id?updated:t):[...state.transactions,updated]};
 }
 export function suggest(state: Ledger, reason: string, person: string) {
   const learned=state.rules.find(r=>normalize(r.reason)===normalize(reason)&&normalize(r.person)===normalize(person));

@@ -1,4 +1,4 @@
-import {active,totals} from './ledger.ts';
+import {active,totals,isCardBillPayment} from './ledger.ts';
 import type {Ledger,Currency,Transaction} from './ledger.ts';
 import {canonicalMerchant} from './merchants.ts';
 export function spendingReport(state:Ledger,currency:Currency,year:number,month:number|null,range?:{from:string;to:string}){
@@ -7,7 +7,7 @@ export function spendingReport(state:Ledger,currency:Currency,year:number,month:
  const months=Array.from({length:12},(_,i)=>{const prefix=`${year}-${String(i+1).padStart(2,'0')}`;return {month:i,...totals(state,currency,prefix+'-01',prefix+'-31')};});
  const vendors=new Map<string,{name:string;amount:number;visits:number}>(),categories=new Map<string,number>();
  for(const t of state.transactions){
-  if(!active(t)||t.currency!==currency||t.date<from||t.date>to||!['expense','refund'].includes(t.kind))continue;
+  if(!active(t)||isCardBillPayment(state,t)||t.currency!==currency||t.date<from||t.date>to||!['expense','refund'].includes(t.kind))continue;
   const original=t.refundOf?state.transactions.find(o=>o.id===t.refundOf):t;
   const name=canonicalMerchant(original?.merchant|| (original?.sourceId?original.description:'Unknown merchant'));
   const v=vendors.get(name)||{name,amount:0,visits:0};v.amount-=t.amount;if(t.kind==='expense')v.visits++;vendors.set(name,v);
@@ -17,7 +17,7 @@ export function spendingReport(state:Ledger,currency:Currency,year:number,month:
 }
 export function recurringPayments(state:Ledger,currency:Currency,through='9999-12-31'){
  const groups=new Map<string,Transaction[]>();
- for(const t of state.transactions){if(!active(t)||t.currency!==currency||t.date>through||t.kind!=='expense'||!t.merchant)continue;const key=canonicalMerchant(t.merchant).toLowerCase();groups.set(key,[...(groups.get(key)||[]),t]);}
+ for(const t of state.transactions){if(!active(t)||isCardBillPayment(state,t)||t.currency!==currency||t.date>through||t.kind!=='expense'||!t.merchant)continue;const key=canonicalMerchant(t.merchant).toLowerCase();groups.set(key,[...(groups.get(key)||[]),t]);}
  return [...groups.values()].flatMap(rows=>{
   rows.sort((a,b)=>b.date.localeCompare(a.date));const last=rows[0];
   if(!last||['Groceries','Dining','Shopping','Household','Transportation'].includes(last.category))return [];
@@ -36,7 +36,7 @@ export function recurringPayments(state:Ledger,currency:Currency,through='9999-1
 export function possibleRepeatedCharges(state:Ledger,currency:Currency,from='',to='9999-12-31'){
  const groups=new Map<string,Transaction[]>();
  for(const t of state.transactions){
-  if(!active(t)||t.currency!==currency||t.kind!=='expense'||!t.merchant||t.date<from||t.date>to)continue;
+  if(!active(t)||isCardBillPayment(state,t)||t.currency!==currency||t.kind!=='expense'||!t.merchant||t.date<from||t.date>to)continue;
   const name=canonicalMerchant(t.merchant),month=t.date.slice(0,7),key=`${name.toLowerCase()}|${t.amount}|${month}`;
   groups.set(key,[...(groups.get(key)||[]),t]);
  }
@@ -45,4 +45,3 @@ export function possibleRepeatedCharges(state:Ledger,currency:Currency,from='',t
   return {key:`${canonicalMerchant(rows[0].merchant!).toLowerCase()}|${rows[0].amount}|${rows[0].date.slice(0,7)}`,name:canonicalMerchant(rows[0].merchant!),amount:-rows[0].amount,count:rows.length,month:rows[0].date.slice(0,7),dates:rows.map(t=>t.date),transactionIds:rows.map(t=>t.id),accountIds:[...new Set(rows.map(t=>t.accountId))]};
  }).sort((a,b)=>b.month.localeCompare(a.month)||b.count-a.count||b.amount-a.amount);
 }
-

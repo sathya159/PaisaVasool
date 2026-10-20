@@ -18,9 +18,9 @@ test('family payments need fresh reasons even if a previous one is known',()=>{
  const x=emptyLedger();x.transactions=[tx('old',{description:'UPI Dad',kind:'expense',person:'Father',category:'Farming',reason:'Seeds'}),tx('new',{description:'UPI Dad'})];
  assert.equal(learnedProposal(x,x.transactions[1]),undefined);
 });
-test('remembered rules do not cross account or direction',()=>{
+test('remembered vendor categories cross accounts but not direction',()=>{
  const x=emptyLedger();x.transactions=[tx('old',{kind:'expense',person:'Me',category:'Groceries',reason:'Weekly groceries'})];
- assert.equal(learnedProposal(x,tx('new',{accountId:'amex'})),undefined);
+ assert.equal(learnedProposal(x,tx('new',{accountId:'amex'}))?.category,'Groceries');
  assert.equal(learnedProposal(x,tx('new',{amount:10000})),undefined);
 });
 test('automatic reuse requires opt-in and skips ambiguous duplicates',()=>{
@@ -92,4 +92,3 @@ test('reuses a consistent custom category for similar medical reasons',()=>{
  const state=emptyLedger();state.rules=[{person:'Me',reason:'Doctor appointment',category:'Healthcare'}];
  assert.equal(reasonOnlyProposal(state,tx('new'),'Prescription medicine')?.category,'Healthcare');
 });
-

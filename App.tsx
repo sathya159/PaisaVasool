@@ -1,4 +1,4 @@
-import {markCardPayment,matchCardPayments} from './src/card-statements';
+import {markCardPayment,matchCardPayments,repairCardPayments} from './src/card-statements';
 import React,{useEffect,useState} from 'react';
 import {View,Text,ScrollView,Pressable,TextInput,StyleSheet,Modal,Platform,KeyboardAvoidingView,ActivityIndicator,Switch} from 'react-native';
 import {SafeAreaProvider,SafeAreaView} from 'react-native-safe-area-context';
@@ -81,11 +81,11 @@ function LedgerApp({email,onSignOut}:{email:string|null;onSignOut:()=>void}){
  const [answers,setAnswers]=useState<Record<string,string>>({}),[proposals,setProposals]=useState<Record<string,Proposal>>({}),[workingId,setWorkingId]=useState('');
  const [readProgress,setReadProgress]=useState(''),[extractionWarnings,setExtractionWarnings]=useState<string[]>([]);
  useEffect(()=>{assistantStatus().then(setAiInfo).catch(e=>setAiInfo({ready:false,engine:'Unavailable',message:e.message}));},[]);
- useEffect(()=>{loadLedger().then(x=>{setLedger(updateAccounts(x));setReady(true);}).catch(e=>setFatal(e.message));},[]);
+ useEffect(()=>{loadLedger().then(x=>{setLedger(applyKnownHistory(repairCardPayments({...updateAccounts(x),autoClassifyKnown:true})).state);setReady(true);}).catch(e=>setFatal(e.message));},[]);
  async function commit(next:Ledger,message:string,keepOpen=false){
    if(busy)return;
    setBusy(true);setError('');
-   try{await saveLedger(next);setLedger(next);setNotice(message);if(!keepOpen)setSheet(null);return true;}
+   try{next=applyKnownHistory(repairCardPayments({...next,autoClassifyKnown:true})).state;await saveLedger(next);setLedger(next);setNotice(message);if(!keepOpen)setSheet(null);return true;}
    catch(e){setError((e as Error).message);setNotice('Could not save. Your previous ledger is unchanged.');return false;}
    finally{setBusy(false);}
  }

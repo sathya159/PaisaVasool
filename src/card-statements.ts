@@ -1,4 +1,4 @@
-import {active,cents,validDate,linkTransfer} from './ledger.ts';
+import {active,cents,validDate,linkTransfer,isCardBillPayment} from './ledger.ts';
 import type {Account,CardStatement,Ledger,Transaction} from './ledger.ts';
 export type CardSummaryDraft={closingDate:string;dueDate:string;balance:string;minimum:string;opening:string};
 export function cardStatement(draft:CardSummaryDraft,sourceHash:string):CardStatement {
@@ -23,6 +23,13 @@ export function matchCardPayments(state:Ledger):Ledger {
   if(matches.length===1&&candidates(matches[0]).length===1)next=linkTransfer(next,t.id,matches[0].id);
  }
  return next;
+}
+export function repairCardPayments(state:Ledger):Ledger{
+ const transactions=state.transactions.map(t=>{
+  if(!active(t)||!isCardBillPayment(state,t)||t.transferId||t.loanOf||state.transactions.some(x=>x.refundOf===t.id||x.loanOf===t.id))return t;
+  return {...t,kind:'transfer' as const,cardPayment:true,refundOf:undefined,category:'Credit card payment',classifiedFromHistory:false};
+ });
+ return matchCardPayments({...state,transactions});
 }
 export function markCardPayment(state:Ledger,id:string):Ledger {
  const t=state.transactions.find(t=>t.id===id),a=state.accounts.find(a=>a.id===t?.accountId);
