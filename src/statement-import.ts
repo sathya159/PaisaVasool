@@ -2,6 +2,11 @@ import {cents,validDate,uid} from './ledger.ts';
 import type {Account,Transaction} from './ledger.ts';
 export type StatementRow={date:string;description:string;amount:string;currency:string;accountId:string;accountName?:string;accountType?:string;evidence:string};
 export type RowIssues=Partial<Record<'date'|'description'|'amount'|'accountId'|'evidence',string>>;
+export function useImportAccount(rows:StatementRow[],account:Account):StatementRow[]{
+ return rows.map(row=>['USD','INR'].includes(row.currency)&&row.currency!==account.currency
+  ? {...row,accountId:'unknown'}
+  : {...row,accountId:account.id,currency:account.currency,accountName:account.name,accountType:account.type});
+}
 export function statementAccountKey(row:StatementRow){
  return JSON.stringify([row.accountId,row.accountName?.trim().toLowerCase()||'',row.accountType||'',row.currency]);
 }
