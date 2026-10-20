@@ -1,11 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {extractStatement} from '../server/statements.ts';
-import {statementRows,statementIssues,statementPeriod,statementAccountKey,assignStatementAccount} from '../src/statement-import.ts';
+import {useImportAccount,statementRows,statementIssues,statementPeriod,statementAccountKey,assignStatementAccount} from '../src/statement-import.ts';
 import {accounts,emptyLedger,importRows} from './fixture.ts';
 const text='Bank of America Checking USD\n2025-01-02,Target,-24.50';
 const row={date:'2025-01-02',description:'Target',amount:'-24.50',accountId:'bofa',accountName:'Bank of America Checking',accountType:'bank',currency:'USD',evidence:'2025-01-02,Target,-24.50'};
 const mock=(rows:unknown[]):typeof fetch=>async()=>Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify({rows,warnings:[]})}}]});
+test('preselected statement account resolves missing currency but flags conflicting currency without conversion',()=>{
+ const account=accounts.find(a=>a.id==='bofa')!;
+ const result=useImportAccount([{...row,accountId:'unknown',currency:'unknown',amount:'24.5'},{...row,currency:'INR'}],account);
+ assert.equal(result[0].accountId,account.id);assert.equal(result[0].currency,'USD');
+ assert.equal(statementRows([result[0]],accounts,'test')[0].amount,2450);
+ assert.equal(result[1].currency,'INR');assert.equal(result[1].amount,row.amount);
+ assert.ok(statementIssues(result[1],accounts).accountId);
+});
 test('one decimal amount is valid; account confirmation resolves the whole extracted group only',()=>{
  const first={...row,accountId:'unknown',currency:'unknown',amount:'24.5'};
  const second={...first,amount:'-12.75'};
